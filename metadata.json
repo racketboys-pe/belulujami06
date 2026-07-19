@@ -1,0 +1,6 @@
+{
+  "name": "Bel Sekolah Otomatis",
+  "description": "Aplikasi pengatur jadwal bel sekolah otomatis dengan nada bel klasik, pengumuman teks-ke-suara (TTS) Bahasa Indonesia, pemicu manual, dan riwayat bel interaktif.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
