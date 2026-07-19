@@ -380,8 +380,6 @@ export default function ScheduleTable({
               </thead>
               <tbody className="divide-y divide-earth-200">
                 {filteredSchedules.map((sched) => {
-                  const isEditing = editingId === sched.id;
-                  
                   return (
                     <tr
                       key={sched.id}
@@ -391,179 +389,67 @@ export default function ScheduleTable({
                     >
                       {/* --- COL 1: TIME --- */}
                       <td className="py-4 px-4 text-center">
-                        {isEditing ? (
-                          <input
-                            type="time"
-                            value={editTime}
-                            onChange={(e) => setEditTime(e.target.value)}
-                            className="px-2 py-1 border border-earth-300 bg-earth-50 rounded font-mono font-bold text-sm text-earth-900 text-center focus:outline-none focus:ring-1 focus:ring-sage-600 focus:border-sage-600"
-                          />
-                        ) : (
-                          <span className="font-mono font-bold text-lg text-earth-900 tracking-tight">
-                            {sched.time}
-                          </span>
-                        )}
+                        <span className="font-mono font-bold text-lg text-earth-900 tracking-tight">
+                          {sched.time}
+                        </span>
                       </td>
 
                       {/* --- COL 2: DETAILS (LABEL & DAYS) --- */}
                       <td className="py-4 px-4">
-                        {isEditing ? (
-                          <div className="flex flex-col gap-2">
-                            <input
-                              type="text"
-                              value={editLabel}
-                              onChange={(e) => setEditLabel(e.target.value)}
-                              className="px-2.5 py-1 text-xs font-semibold text-earth-900 bg-earth-50 border border-earth-300 rounded focus:outline-none focus:ring-1 focus:ring-sage-600 focus:border-sage-600"
-                            />
-                            {/* Edit day buttons */}
-                            <div className="flex flex-wrap gap-1">
-                              {HARI_INDONESIA.map((day) => {
-                                const active = editDays.includes(day.value);
-                                return (
-                                  <button
-                                    type="button"
-                                    key={day.value}
-                                    onClick={() => handleEditDayToggle(day.value)}
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
-                                      active
-                                        ? 'bg-sage-700 text-white shadow-xs'
-                                        : 'bg-earth-100 text-earth-700 border border-earth-300'
-                                    }`}
-                                  >
-                                    {day.label.substring(0, 3)}
-                                  </button>
-                                );
-                              })}
-                            </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="font-serif font-bold text-earth-900 text-sm">
+                            {sched.label}
+                          </span>
+                          {/* Days indicators */}
+                          <div className="flex items-center gap-1.5">
+                            {sched.days.length === 0 ? (
+                              <span className="text-[10px] font-medium bg-sage-50 text-sage-800 px-2 py-0.5 rounded">
+                                Setiap Hari
+                              </span>
+                            ) : (
+                              <div className="flex gap-1">
+                                {HARI_INDONESIA.map((day) => {
+                                  const active = sched.days.includes(day.value);
+                                  if (!active) return null;
+                                  return (
+                                    <span
+                                      key={day.value}
+                                      className="text-[10px] font-bold bg-earth-100 text-earth-700 px-1.5 py-0.5 rounded border border-earth-200"
+                                    >
+                                      {day.label}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
-                        ) : (
-                          <div className="flex flex-col gap-1">
-                            <span className="font-serif font-bold text-earth-900 text-sm">
-                              {sched.label}
-                            </span>
-                            {/* Days indicators */}
-                            <div className="flex items-center gap-1.5">
-                              {sched.days.length === 0 ? (
-                                <span className="text-[10px] font-medium bg-sage-50 text-sage-800 px-2 py-0.5 rounded">
-                                  Setiap Hari
-                                </span>
-                              ) : (
-                                <div className="flex gap-1">
-                                  {HARI_INDONESIA.map((day) => {
-                                    const active = sched.days.includes(day.value);
-                                    if (!active) return null;
-                                    return (
-                                      <span
-                                        key={day.value}
-                                        className="text-[10px] font-bold bg-earth-100 text-earth-700 px-1.5 py-0.5 rounded border border-earth-200"
-                                      >
-                                        {day.label}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
+                        </div>
                       </td>
 
                       {/* --- COL 3: SOUND DETAILS --- */}
                       <td className="py-4 px-4 text-xs">
-                        {isEditing ? (
-                          <div className="flex flex-col gap-1.5">
-                            <select
-                              value={editSoundType}
-                              onChange={(e) => setEditSoundType(e.target.value as SoundType)}
-                              className="px-1.5 py-1 text-[11px] bg-earth-50 border border-earth-300 text-earth-900 rounded focus:outline-none focus:ring-1 focus:ring-sage-600 focus:border-sage-600"
-                            >
-                              <option value="both">Nada + Suara</option>
-                              <option value="chime">Hanya Nada</option>
-                              <option value="tts">Hanya Suara (TTS)</option>
-                            </select>
-
-                            {editSoundType !== 'tts' && (
-                              <div className="flex flex-col gap-1.5">
-                                <span className="text-[10px] text-earth-700 font-bold">Pilih Nada Bel:</span>
-                                <select
-                                  value={editIntroAudioId || editChime}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    const isCustom = customAudios.some((a) => a.id === val);
-                                    if (isCustom) {
-                                      setEditIntroAudioId(val);
-                                    } else {
-                                      setEditIntroAudioId('');
-                                      setEditChime(val as ChimeType);
-                                    }
-                                  }}
-                                  className="px-1.5 py-1 text-[11px] bg-earth-50 border border-earth-300 text-earth-900 rounded focus:outline-none focus:ring-1 focus:ring-sage-600 focus:border-sage-600"
-                                >
-                                  <optgroup label="Nada Preset Bawaan">
-                                    <option value="westminster">Westminster</option>
-                                    <option value="dingdong">Dingdong</option>
-                                    <option value="dingdongding">Dingdongding (Rekomendasi)</option>
-                                    <option value="classic">Buzzer Listrik</option>
-                                    <option value="beep">Beep</option>
-                                  </optgroup>
-                                  {customAudios.length > 0 && (
-                                    <optgroup label="Nada Kustom (Hasil Unggah)">
-                                      {customAudios.map((file) => (
-                                        <option key={file.id} value={file.id}>
-                                          🎵 {file.name}
-                                        </option>
-                                      ))}
-                                    </optgroup>
-                                  )}
-                                </select>
-                              </div>
-                            )}
-
-                            {editSoundType !== 'chime' && (
-                              <div className="flex flex-col gap-1">
-                                <div className="flex justify-between items-center">
-                                  <span className="text-[10px] text-earth-700 font-bold">Kustom Teks TTS:</span>
-                                  <button
-                                    type="button"
-                                    onClick={handleGenerateEditTtsPreset}
-                                    className="text-[9px] font-bold bg-sage-50 text-sage-800 px-1.5 py-0.2 rounded"
-                                  >
-                                    Auto
-                                  </button>
-                                </div>
-                                <textarea
-                                  value={editTtsText}
-                                  onChange={(e) => setEditTtsText(e.target.value)}
-                                  rows={1}
-                                  className="px-1.5 py-1 text-[10px] bg-earth-50 border border-earth-300 text-earth-900 rounded resize-none"
-                                />
-                              </div>
-                            )}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1 font-semibold text-earth-800">
+                            <Music className="w-3.5 h-3.5 text-earth-700" />
+                            <span className="capitalize">
+                              {sched.soundType === 'both' ? 'Nada & Suara' : sched.soundType === 'chime' ? 'Hanya Nada' : 'Hanya Suara (TTS)'}
+                            </span>
                           </div>
-                        ) : (
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1 font-semibold text-earth-800">
-                              <Music className="w-3.5 h-3.5 text-earth-700" />
-                              <span className="capitalize">
-                                {sched.soundType === 'both' ? 'Nada & Suara' : sched.soundType === 'chime' ? 'Hanya Nada' : 'Hanya Suara (TTS)'}
-                              </span>
-                            </div>
-                            
-                            {sched.soundType !== 'tts' && (
-                              <span className="text-[10px] text-sage-800 font-mono font-bold bg-sage-50 px-1.5 py-0.5 rounded w-max">
-                                {sched.introAudioId && customAudios.some(a => a.id === sched.introAudioId)
-                                  ? `Kustom: ${customAudios.find(a => a.id === sched.introAudioId)?.name}`
-                                  : `Preset: ${sched.chimePreset}`}
-                              </span>
-                            )}
-                            
-                            {sched.soundType !== 'chime' && (
-                              <p className="text-[10px] text-earth-750 italic line-clamp-1 max-w-[200px]" title={sched.ttsText}>
-                                "{sched.ttsText}"
-                              </p>
-                            )}
-                          </div>
-                        )}
+                          
+                          {sched.soundType !== 'tts' && (
+                            <span className="text-[10px] text-sage-800 font-mono font-bold bg-sage-50 px-1.5 py-0.5 rounded w-max">
+                              {sched.introAudioId && customAudios.some(a => a.id === sched.introAudioId)
+                                ? `Kustom: ${customAudios.find(a => a.id === sched.introAudioId)?.name}`
+                                : `Preset: ${sched.chimePreset}`}
+                            </span>
+                          )}
+                          
+                          {sched.soundType !== 'chime' && (
+                            <p className="text-[10px] text-earth-750 italic line-clamp-1 max-w-[200px]" title={sched.ttsText}>
+                              "{sched.ttsText}"
+                            </p>
+                          )}
+                        </div>
                       </td>
 
                       {/* --- COL 4: STATUS SWITCH --- */}
@@ -581,59 +467,38 @@ export default function ScheduleTable({
 
                       {/* --- COL 5: ACTIONS --- */}
                       <td className="py-4 px-4">
-                        {isEditing ? (
-                          <div className="flex justify-center gap-1.5">
-                            <button
-                              onClick={() => saveEdit(sched.id)}
-                              className="p-1.5 bg-sage-600 hover:bg-sage-700 text-white rounded-lg cursor-pointer transition-all shadow-sm flex items-center gap-0.5 text-[10px] font-bold"
-                              title="Simpan"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              Simpan
-                            </button>
-                            <button
-                              onClick={cancelEdit}
-                              className="p-1.5 bg-earth-200 hover:bg-earth-300 text-earth-800 rounded-lg cursor-pointer transition-all flex items-center gap-0.5 text-[10px] font-bold border border-earth-300"
-                              title="Batal"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                              Batal
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center gap-1.5">
-                            {/* Preview ring button */}
-                            <button
-                              onClick={() => onPreviewSchedule(sched)}
-                              className="p-1.5 text-sage-700 hover:bg-sage-50 border border-sage-200 rounded-lg cursor-pointer transition-all"
-                              title="Uji Suara"
-                            >
-                              <Play className="w-3.5 h-3.5 fill-current text-sage-600" />
-                            </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          {/* Preview ring button */}
+                          <button
+                            onClick={() => onPreviewSchedule(sched)}
+                            className="p-1.5 text-sage-700 hover:bg-sage-50 border border-sage-200 rounded-lg cursor-pointer transition-all"
+                            title="Uji Suara"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current text-sage-600" />
+                          </button>
 
-                            {/* Edit button */}
-                            <button
-                              onClick={() => startEdit(sched)}
-                              className="p-1.5 text-earth-700 hover:bg-earth-100 border border-earth-300 rounded-lg cursor-pointer transition-all"
-                              title="Ubah"
-                            >
-                              <Edit2 className="w-3.5 h-3.5 text-earth-800" />
-                            </button>
+                          {/* Edit button */}
+                          <button
+                            onClick={() => startEdit(sched)}
+                            className="p-1.5 text-earth-700 hover:bg-earth-100 border border-earth-300 rounded-lg cursor-pointer transition-all"
+                            title="Ubah"
+                          >
+                            <Edit2 className="w-3.5 h-3.5 text-earth-800" />
+                          </button>
 
-                            {/* Delete button */}
-                            <button
-                              onClick={() => {
-                                if (confirm(`Hapus jadwal bel "${sched.label}"?`)) {
-                                  onDeleteSchedule(sched.id);
-                                }
-                              }}
-                              className="p-1.5 text-terracotta-600 hover:bg-terracotta-50 border border-terracotta-200 rounded-lg cursor-pointer transition-all"
-                              title="Hapus"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
+                          {/* Delete button */}
+                          <button
+                            onClick={() => {
+                              if (confirm(`Hapus jadwal bel "${sched.label}"?`)) {
+                                onDeleteSchedule(sched.id);
+                              }
+                            }}
+                            className="p-1.5 text-terracotta-600 hover:bg-terracotta-50 border border-terracotta-200 rounded-lg cursor-pointer transition-all"
+                            title="Hapus"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -656,6 +521,191 @@ export default function ScheduleTable({
           </div>
         )}
       </div>
+
+      {/* Edit Modal Dialog */}
+      {editingId !== null && (
+        <div className="fixed inset-0 bg-earth-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto animate-[fadeIn_0.2s_ease-out]" id="edit-schedule-modal">
+          <div className="bg-white rounded-2xl border border-earth-300 shadow-xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="bg-sage-50 px-5 py-4 border-b border-earth-200 flex justify-between items-center">
+              <h3 className="font-serif font-bold text-sm text-sage-900 uppercase tracking-wider flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-terracotta-500" />
+                Ubah Jadwal Bel
+              </h3>
+              <button 
+                type="button" 
+                onClick={cancelEdit}
+                className="text-earth-500 hover:text-earth-700 p-1 rounded-lg hover:bg-earth-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            {/* Modal Body */}
+            <form onSubmit={(e) => { e.preventDefault(); saveEdit(editingId); }} className="p-5 flex flex-col gap-4 overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Waktu Bel */}
+                <div>
+                  <label className="text-[10px] font-bold text-earth-800 uppercase tracking-wider">
+                    Waktu Bel (HH:MM)
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={editTime}
+                    onChange={(e) => setEditTime(e.target.value)}
+                    className="w-full mt-1.5 px-3 py-1.5 bg-earth-50 border border-earth-300 rounded-xl text-sm font-semibold font-mono text-earth-900 focus:outline-none focus:border-sage-600 focus:ring-1 focus:ring-sage-600"
+                  />
+                </div>
+
+                {/* Label Bel */}
+                <div>
+                  <label className="text-[10px] font-bold text-earth-800 uppercase tracking-wider">
+                    Nama Kegiatan / Label Bel
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editLabel}
+                    onChange={(e) => setEditLabel(e.target.value)}
+                    className="w-full mt-1.5 px-3 py-1.5 bg-earth-50 border border-earth-300 rounded-xl text-sm font-medium text-earth-900 focus:outline-none focus:border-sage-600 focus:ring-1 focus:ring-sage-600"
+                  />
+                </div>
+              </div>
+
+              {/* Hari Operasional */}
+              <div>
+                <span className="text-[10px] font-bold text-earth-800 uppercase tracking-wider block mb-1.5">
+                  Hari Operasional Bel
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {HARI_INDONESIA.map((day) => {
+                    const active = editDays.includes(day.value);
+                    return (
+                      <button
+                        type="button"
+                        key={day.value}
+                        onClick={() => handleEditDayToggle(day.value)}
+                        className={`h-7 px-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                          active
+                            ? 'bg-sage-700 text-white shadow-xs'
+                            : 'bg-earth-50 hover:bg-earth-100 text-earth-700 border border-earth-300'
+                        }`}
+                      >
+                        {day.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-earth-600 italic mt-1.5">
+                  * Kosongkan pilihan jika ingin bel berbunyi setiap hari.
+                </p>
+              </div>
+
+              {/* Jenis Suara */}
+              <div className="flex flex-col gap-3 pt-1 border-t border-earth-100">
+                <div>
+                  <label className="text-[10px] font-bold text-earth-800 uppercase tracking-wider">
+                    Jenis Bunyi
+                  </label>
+                  <select
+                    value={editSoundType}
+                    onChange={(e) => setEditSoundType(e.target.value as SoundType)}
+                    className="w-full mt-1.5 px-2.5 py-1.5 bg-earth-50 border border-earth-300 rounded-xl text-xs text-earth-900 focus:outline-none focus:border-sage-600 focus:ring-1 focus:ring-sage-600"
+                  >
+                    <option value="both">Nada + Suara</option>
+                    <option value="chime">Hanya Nada</option>
+                    <option value="tts">Hanya Suara (TTS)</option>
+                  </select>
+                </div>
+
+                {/* Pilih Nada Bel */}
+                {editSoundType !== 'tts' && (
+                  <div>
+                    <label className="text-[10px] font-bold text-earth-800 uppercase tracking-wider">
+                      Pilih Nada Bel / Pengiring
+                    </label>
+                    <select
+                      value={editIntroAudioId || editChime}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const isCustom = customAudios.some((a) => a.id === val);
+                        if (isCustom) {
+                          setEditIntroAudioId(val);
+                        } else {
+                          setEditIntroAudioId('');
+                          setEditChime(val as ChimeType);
+                        }
+                      }}
+                      className="w-full mt-1.5 px-2.5 py-1.5 bg-earth-50 border border-earth-300 rounded-xl text-xs text-earth-900 focus:outline-none focus:border-sage-600 focus:ring-1 focus:ring-sage-600"
+                    >
+                      <optgroup label="Nada Preset Bawaan">
+                        <option value="westminster">Westminster Chime (Gedung)</option>
+                        <option value="dingdong">Dingdong Double Chime (Kelas)</option>
+                        <option value="dingdongding">Dingdongding Triple Chime (Rekomendasi)</option>
+                        <option value="classic">Gong Listrik Klasik (Buzzer)</option>
+                        <option value="beep">Beep Digital Pendek</option>
+                      </optgroup>
+                      {customAudios.length > 0 && (
+                        <optgroup label="Nada Kustom (Hasil Unggah)">
+                          {customAudios.map((file) => (
+                            <option key={file.id} value={file.id}>
+                              🎵 {file.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </select>
+                  </div>
+                )}
+
+                {/* Teks TTS */}
+                {editSoundType !== 'chime' && (
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-[10px] font-bold text-earth-800 uppercase tracking-wider">
+                        Teks Pengeras Suara (TTS)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleGenerateEditTtsPreset}
+                        className="text-[10px] font-bold bg-sage-50 hover:bg-sage-100 text-sage-800 px-2 py-0.5 rounded border border-sage-200 cursor-pointer"
+                      >
+                        Gunakan Kalimat Otomatis
+                      </button>
+                    </div>
+                    <textarea
+                      placeholder="Masukkan pesan teks suara untuk diumumkan"
+                      value={editTtsText}
+                      onChange={(e) => setEditTtsText(e.target.value)}
+                      rows={2}
+                      className="w-full px-3 py-1.5 bg-earth-50 border border-earth-300 rounded-xl text-xs text-earth-900 focus:outline-none focus:border-sage-600 focus:ring-1 focus:ring-sage-600 resize-none font-medium"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex justify-end gap-2 border-t border-earth-100 pt-4 mt-2">
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  className="px-4 py-2 text-xs font-semibold text-earth-800 bg-earth-100 hover:bg-earth-200 border border-earth-300 rounded-xl cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold text-white bg-sage-700 hover:bg-sage-800 shadow-sm rounded-xl cursor-pointer flex items-center gap-1"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  Simpan Perubahan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

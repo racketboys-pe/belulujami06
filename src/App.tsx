@@ -118,6 +118,21 @@ export default function App() {
     }
   };
 
+  // Update favicon dynamically based on uploaded logo
+  useEffect(() => {
+    let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.getElementsByTagName('head')[0].appendChild(link);
+    }
+    if (logoUrl) {
+      link.href = logoUrl;
+    } else {
+      link.href = '/favicon.ico';
+    }
+  }, [logoUrl]);
+
   // To prevent multiple triggers within the same minute
   const lastRungKeyRef = useRef<string>('');
 
