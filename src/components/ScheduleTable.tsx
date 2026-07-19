@@ -371,50 +371,50 @@ export default function ScheduleTable({
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-earth-200/50 border-b border-earth-300 text-earth-700 text-[10px] font-bold tracking-wider uppercase">
-                  <th className="py-3 px-4 w-24 text-center">Waktu</th>
-                  <th className="py-3 px-4">Keterangan & Hari</th>
-                  <th className="py-3 px-4 w-52">Jenis Bunyi / Nada</th>
-                  <th className="py-3 px-4 w-16 text-center">Aktif</th>
-                  <th className="py-3 px-4 w-40 text-center">Tindakan</th>
+                  <th className="py-2.5 px-2 sm:px-3.5 w-16 sm:w-20 text-center">Waktu</th>
+                  <th className="py-2.5 px-2 sm:px-3.5">Keterangan & Hari</th>
+                  <th className="py-2.5 px-2 sm:px-3.5 w-32 sm:w-44">Jenis Bunyi / Nada</th>
+                  <th className="py-2.5 px-2 sm:px-3.5 w-12 sm:w-16 text-center">Aktif</th>
+                  <th className="py-2.5 px-2 sm:px-3.5 w-24 sm:w-28 text-center">Tindakan</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-earth-200">
                 {filteredSchedules.map((sched) => {
                   return (
                     <tr
-                      key={sched.id}
-                      className={`transition-colors hover:bg-earth-100/35 ${
-                        !sched.isActive ? 'opacity-65 bg-earth-100/10' : ''
-                      }`}
+                       key={sched.id}
+                       className={`transition-colors hover:bg-earth-100/35 ${
+                         !sched.isActive ? 'opacity-65 bg-earth-100/10' : ''
+                       }`}
                     >
                       {/* --- COL 1: TIME --- */}
-                      <td className="py-4 px-4 text-center">
-                        <span className="font-mono font-bold text-lg text-earth-900 tracking-tight">
+                      <td className="py-3 px-2 sm:px-3.5 text-center">
+                        <span className="font-mono font-bold text-base sm:text-lg text-earth-900 tracking-tight">
                           {sched.time}
                         </span>
                       </td>
 
                       {/* --- COL 2: DETAILS (LABEL & DAYS) --- */}
-                      <td className="py-4 px-4">
+                      <td className="py-3 px-2 sm:px-3.5">
                         <div className="flex flex-col gap-1">
-                          <span className="font-serif font-bold text-earth-900 text-sm">
+                          <span className="font-serif font-bold text-earth-900 text-xs sm:text-sm">
                             {sched.label}
                           </span>
                           {/* Days indicators */}
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1">
                             {sched.days.length === 0 ? (
-                              <span className="text-[10px] font-medium bg-sage-50 text-sage-800 px-2 py-0.5 rounded">
+                              <span className="text-[9px] sm:text-[10px] font-medium bg-sage-50 text-sage-800 px-1.5 py-0.2 rounded">
                                 Setiap Hari
                               </span>
                             ) : (
-                              <div className="flex gap-1">
+                              <div className="flex flex-wrap gap-0.5 sm:gap-1">
                                 {HARI_INDONESIA.map((day) => {
                                   const active = sched.days.includes(day.value);
                                   if (!active) return null;
                                   return (
                                     <span
                                       key={day.value}
-                                      className="text-[10px] font-bold bg-earth-100 text-earth-700 px-1.5 py-0.5 rounded border border-earth-200"
+                                      className="text-[9px] sm:text-[10px] font-bold bg-earth-100 text-earth-700 px-1 sm:px-1.5 py-0.2 rounded border border-earth-200"
                                     >
                                       {day.label}
                                     </span>
@@ -427,25 +427,25 @@ export default function ScheduleTable({
                       </td>
 
                       {/* --- COL 3: SOUND DETAILS --- */}
-                      <td className="py-4 px-4 text-xs">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-1 font-semibold text-earth-800">
-                            <Music className="w-3.5 h-3.5 text-earth-700" />
+                      <td className="py-3 px-2 sm:px-3.5 text-xs">
+                        <div className="flex flex-col gap-0.5 sm:gap-1">
+                          <div className="flex items-center gap-1 font-semibold text-earth-800 text-[11px] sm:text-xs">
+                            <Music className="w-3 h-3 text-earth-700" />
                             <span className="capitalize">
                               {sched.soundType === 'both' ? 'Nada & Suara' : sched.soundType === 'chime' ? 'Hanya Nada' : 'Hanya Suara (TTS)'}
                             </span>
                           </div>
                           
                           {sched.soundType !== 'tts' && (
-                            <span className="text-[10px] text-sage-800 font-mono font-bold bg-sage-50 px-1.5 py-0.5 rounded w-max">
+                            <span className="text-[9px] sm:text-[10px] text-sage-800 font-mono font-bold bg-sage-50 px-1 py-0.2 rounded w-max truncate max-w-[120px] sm:max-w-[160px]" title={sched.introAudioId && customAudios.some(a => a.id === sched.introAudioId) ? customAudios.find(a => a.id === sched.introAudioId)?.name : sched.chimePreset}>
                               {sched.introAudioId && customAudios.some(a => a.id === sched.introAudioId)
-                                ? `Kustom: ${customAudios.find(a => a.id === sched.introAudioId)?.name}`
-                                : `Preset: ${sched.chimePreset}`}
+                                ? `🎵 ${customAudios.find(a => a.id === sched.introAudioId)?.name}`
+                                : `🔔 ${sched.chimePreset}`}
                             </span>
                           )}
                           
                           {sched.soundType !== 'chime' && (
-                            <p className="text-[10px] text-earth-750 italic line-clamp-1 max-w-[200px]" title={sched.ttsText}>
+                            <p className="text-[9px] sm:text-[10px] text-earth-750 italic line-clamp-1 max-w-[110px] sm:max-w-[180px]" title={sched.ttsText}>
                               "{sched.ttsText}"
                             </p>
                           )}
@@ -453,37 +453,39 @@ export default function ScheduleTable({
                       </td>
 
                       {/* --- COL 4: STATUS SWITCH --- */}
-                      <td className="py-4 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => onUpdateSchedule(sched.id, { isActive: !sched.isActive })}
-                          className={`w-10 h-6 rounded-full p-0.5 transition-colors duration-200 cursor-pointer focus:outline-none flex items-center ${
-                            sched.isActive ? 'bg-sage-600 justify-end' : 'bg-earth-300 justify-start'
-                          }`}
-                        >
-                          <span className="w-5 h-5 bg-white rounded-full shadow-md transform duration-200" />
-                        </button>
+                      <td className="py-3 px-2 sm:px-3.5 text-center">
+                        <div className="flex justify-center">
+                          <button
+                            type="button"
+                            onClick={() => onUpdateSchedule(sched.id, { isActive: !sched.isActive })}
+                            className={`w-8 h-5 sm:w-10 sm:h-6 rounded-full p-0.5 transition-colors duration-200 cursor-pointer focus:outline-none flex items-center ${
+                              sched.isActive ? 'bg-sage-600 justify-end' : 'bg-earth-300 justify-start'
+                            }`}
+                          >
+                            <span className="w-4 h-4 sm:w-5 sm:h-5 bg-white rounded-full shadow-md transform duration-200" />
+                          </button>
+                        </div>
                       </td>
 
                       {/* --- COL 5: ACTIONS --- */}
-                      <td className="py-4 px-4">
-                        <div className="flex items-center justify-center gap-1.5">
+                      <td className="py-3 px-2 sm:px-3.5">
+                        <div className="flex items-center justify-center gap-1 sm:gap-1.5">
                           {/* Preview ring button */}
                           <button
                             onClick={() => onPreviewSchedule(sched)}
-                            className="p-1.5 text-sage-700 hover:bg-sage-50 border border-sage-200 rounded-lg cursor-pointer transition-all"
+                            className="p-1 sm:p-1.5 text-sage-700 hover:bg-sage-50 border border-sage-200 rounded-lg cursor-pointer transition-all"
                             title="Uji Suara"
                           >
-                            <Play className="w-3.5 h-3.5 fill-current text-sage-600" />
+                            <Play className="w-3 sm:w-3.5 h-3 sm:h-3.5 fill-current text-sage-600" />
                           </button>
 
                           {/* Edit button */}
                           <button
                             onClick={() => startEdit(sched)}
-                            className="p-1.5 text-earth-700 hover:bg-earth-100 border border-earth-300 rounded-lg cursor-pointer transition-all"
+                            className="p-1 sm:p-1.5 text-earth-700 hover:bg-earth-100 border border-earth-300 rounded-lg cursor-pointer transition-all"
                             title="Ubah"
                           >
-                            <Edit2 className="w-3.5 h-3.5 text-earth-800" />
+                            <Edit2 className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-earth-800" />
                           </button>
 
                           {/* Delete button */}
@@ -493,10 +495,10 @@ export default function ScheduleTable({
                                 onDeleteSchedule(sched.id);
                               }
                             }}
-                            className="p-1.5 text-terracotta-600 hover:bg-terracotta-50 border border-terracotta-200 rounded-lg cursor-pointer transition-all"
+                            className="p-1 sm:p-1.5 text-terracotta-600 hover:bg-terracotta-50 border border-terracotta-200 rounded-lg cursor-pointer transition-all"
                             title="Hapus"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
                           </button>
                         </div>
                       </td>
