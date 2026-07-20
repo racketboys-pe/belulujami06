@@ -421,3 +421,53 @@ export function getIndonesianVoices(): SpeechSynthesisVoice[] {
   // Return all voices if Indonesian is not found, to allow users to select standard voices as fallback
   return idVoices.length > 0 ? idVoices : allVoices;
 }
+
+let silenceOscillator: OscillatorNode | null = null;
+let silenceGain: GainNode | null = null;
+
+/**
+ * Plays an extremely low-gain, sub-audible oscillator.
+ * This registers as active audio output to prevent the browser from sleeping
+ * or suspending the tab when it is minimized or running in the background.
+ */
+export function startSilenceKeepAlive(): void {
+  try {
+    const ctx = initAudioContext();
+    if (!silenceOscillator) {
+      silenceOscillator = ctx.createOscillator();
+      silenceGain = ctx.createGain();
+      
+      // Setting a virtually zero volume to make it totally silent (1e-6)
+      silenceGain.gain.setValueAtTime(0.000001, ctx.currentTime);
+      
+      silenceOscillator.type = 'sine';
+      silenceOscillator.frequency.setValueAtTime(1, ctx.currentTime); // 1 Hz (sub-audible infrasound)
+      
+      silenceOscillator.connect(silenceGain);
+      silenceGain.connect(ctx.destination);
+      
+      silenceOscillator.start();
+      console.log('🔌 Keep-Alive Audio Latar Belakang Aktif');
+    }
+  } catch (err) {
+    console.warn('Gagal mengaktifkan keep-alive audio:', err);
+  }
+}
+
+export function stopSilenceKeepAlive(): void {
+  try {
+    if (silenceOscillator) {
+      silenceOscillator.stop();
+      silenceOscillator.disconnect();
+      silenceOscillator = null;
+    }
+    if (silenceGain) {
+      silenceGain.disconnect();
+      silenceGain = null;
+    }
+    console.log('🛑 Keep-Alive Audio Latar Belakang Nonaktif');
+  } catch (err) {
+    console.warn('Gagal mematikan keep-alive audio:', err);
+  }
+}
+

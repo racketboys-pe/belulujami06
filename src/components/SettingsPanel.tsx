@@ -20,6 +20,13 @@ interface SettingsPanelProps {
   onLogoUpdate: (logo: string | null) => void;
   customAudios: CustomAudioFile[];
   onUpdateCustomAudios: (audios: CustomAudioFile[]) => void;
+  syncUser: any;
+  syncToken: string | null;
+  isSyncing: boolean;
+  lastSyncTime: number | null;
+  onSyncLogin: () => Promise<void>;
+  onSyncLogout: () => Promise<void>;
+  onSyncManual: () => Promise<void>;
 }
 
 export default function SettingsPanel({
@@ -32,6 +39,13 @@ export default function SettingsPanel({
   onLogoUpdate,
   customAudios,
   onUpdateCustomAudios,
+  syncUser,
+  syncToken,
+  isSyncing,
+  lastSyncTime,
+  onSyncLogin,
+  onSyncLogout,
+  onSyncManual,
 }: SettingsPanelProps) {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [testText, setTestText] = useState('Tes suara bel otomatis siap digunakan.');
@@ -633,6 +647,86 @@ export default function SettingsPanel({
               <span className="text-[10px] text-earth-700">Pengawasan ketat waktu masuk, sesi 1, istirahat, sesi 2</span>
             </button>
           </div>
+        </div>
+
+        {/* Sinkronisasi Google Drive Card */}
+        <div className="bg-white rounded-2xl p-5 border border-earth-300 shadow-xs flex flex-col gap-4">
+          <div className="flex items-center gap-2 border-b border-earth-200/55 pb-3">
+            <div className="p-1.5 bg-sage-50 rounded-lg text-sage-600">
+              <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} />
+            </div>
+            <span className="font-serif font-bold text-earth-900 text-sm">Sinkronisasi Google Drive</span>
+          </div>
+
+          {syncUser ? (
+            <div className="flex flex-col gap-3.5">
+              <div className="p-3 bg-sage-50 border border-sage-200 rounded-xl flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-xs font-bold text-sage-900">Aktif & Tersinkronisasi</span>
+                </div>
+                <div className="text-xs text-earth-800 leading-tight">
+                  <span className="font-semibold text-earth-900">Akun Google:</span> {syncUser.email || 'Operator'}
+                </div>
+                {lastSyncTime && (
+                  <div className="text-[10px] text-earth-600">
+                    <span className="font-medium text-earth-700">Terakhir Sinkron:</span> {new Date(lastSyncTime).toLocaleString('id-ID', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit'
+                    })} WIB
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={onSyncManual}
+                  disabled={isSyncing}
+                  className="flex-1 py-2 bg-sage-700 hover:bg-sage-800 disabled:bg-sage-400 text-white font-bold text-xs rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                  Sinkronkan Sekarang
+                </button>
+
+                <button
+                  onClick={onSyncLogout}
+                  disabled={isSyncing}
+                  className="px-3 py-2 bg-terracotta-50 hover:bg-terracotta-100 text-terracotta-700 border border-terracotta-200 font-bold text-xs rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+                  title="Putuskan Hubungan Google Drive"
+                >
+                  Keluar
+                </button>
+              </div>
+              <span className="text-[10px] text-earth-600 leading-normal">
+                ✓ Setiap kali Anda menambah, menghapus, atau mengubah jadwal bel dan pengaturan, perubahan akan secara otomatis disinkronkan ke Google Drive Anda secara real-time.
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <p className="text-xs text-earth-700 leading-relaxed">
+                Hubungkan ke akun Google Drive Anda untuk menyelaraskan jadwal bel sekolah dan pengaturan secara otomatis. Data tetap aman dan sinkron meskipun Anda membuka dari komputer atau PC lain.
+              </p>
+              
+              <button
+                onClick={onSyncLogin}
+                disabled={isSyncing}
+                className="w-full py-2.5 bg-green-700 hover:bg-green-800 disabled:bg-green-400 text-white font-bold text-xs rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+              >
+                {isSyncing ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z"/>
+                  </svg>
+                )}
+                Hubungkan Google Drive
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Backup and Wiping controls */}

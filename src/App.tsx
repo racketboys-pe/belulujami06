@@ -4,10 +4,11 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Calendar, HelpCircle, FileSpreadsheet, Settings, History, Info, Play, CheckCircle2, AlertCircle, LogOut } from 'lucide-react';
+import { Bell, Calendar, HelpCircle, FileSpreadsheet, Settings, History, Info, Play, CheckCircle2, AlertCircle, LogOut, RefreshCw } from 'lucide-react';
 import { BellSchedule, BellLog, BellSettings, ChimeType, SoundType, CustomAudioFile } from './types';
 import { PRESET_SENIN_KAMIS, PRESET_JUMAT } from './constants';
-import { initAudioContext, playBellNotification } from './audioEngine';
+import { initAudioContext, playBellNotification, startSilenceKeepAlive, stopSilenceKeepAlive } from './audioEngine';
+import { initAuth, googleSignIn, googleSignOut, uploadSyncFile, findSyncFile, downloadSyncFile, SyncData } from './gdriveSync';
 
 import ClockPanel from './components/ClockPanel';
 import ManualControls from './components/ManualControls';
@@ -40,6 +41,18 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'jadwal' | 'riwayat' | 'pengaturan'>('jadwal');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [customAudios, setCustomAudios] = useState<CustomAudioFile[]>([]);
+
+  // --- GOOGLE DRIVE SYNC STATES ---
+  const [syncUser, setSyncUser] = useState<any>(null);
+  const [syncToken, setSyncToken] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<number | null>(() => {
+    const stored = localStorage.getItem('bel_sekolah_last_sync');
+    return stored ? parseInt(stored) : null;
+  });
+  const [showSyncConflictModal, setShowSyncConflictModal] = useState(false);
+  const [conflictData, setConflictData] = useState<SyncData | null>(null);
+
 
   const handleLoginSuccess = () => {
     setIsLoggedIn(true);
@@ -174,108 +187,306 @@ export default function App() {
         console.error('Gagal memuat log:', e);
       }
     }
+
+    // 4. Register Google Auth listener for Drive Sync
+    const unsubscribeAuth = initAuth(
+      (user, token) => {
+        setSyncUser(user);
+        setSyncToken(token);
+      },
+      () => {
+        setSyncUser(null);
+        setSyncToken(null);
+      }
+    );
+
+    return () => {
+      unsubscribeAuth();
+    };
   }, []);
 
   // --- PERSISTENCE SYNCS ---
   const saveSchedules = (newSchedules: BellSchedule[]) => {
     setSchedules(newSchedules);
     localStorage.setItem('bel_sekolah_schedules', JSON.stringify(newSchedules));
+    
+    // Auto-sync to Google Drive in real-time if authenticated
+    if (syncToken) {
+      uploadSyncFile(syncToken, newSchedules, settings).then((success) => {
+        if (success) {
+          const nowMs = Date.now();
+          setLastSyncTime(nowMs);
+          localStorage.setItem('bel_sekolah_last_sync', nowMs.toString());
+        }
+      });
+    }
   };
 
   const handleUpdateSettings = (updated: Partial<BellSettings>) => {
     const newSettings = { ...settings, ...updated };
     setSettings(newSettings);
     localStorage.setItem('bel_sekolah_settings', JSON.stringify(newSettings));
+    
+    // Auto-sync to Google Drive in real-time if authenticated
+    if (syncToken) {
+      uploadSyncFile(syncToken, schedules, newSettings).then((success) => {
+        if (success) {
+          const nowMs = Date.now();
+          setLastSyncTime(nowMs);
+          localStorage.setItem('bel_sekolah_last_sync', nowMs.toString());
+        }
+      });
+    }
   };
 
-  // --- AUTOMATIC CHRON TIMER ENGINE ---
+  // State reference to let the non-throttled Web Worker tick thread always access current states
+  const cronStateRef = useRef({ schedules, settings, customAudios });
   useEffect(() => {
-    if (!isEngineActive) return;
+    cronStateRef.current = { schedules, settings, customAudios };
+  }, [schedules, settings, customAudios]);
 
-    const interval = setInterval(() => {
-      const now = new Date();
-      const currentDay = now.getDay(); // 0 = Minggu, 1 = Senin, dll
-      const currentHour = now.getHours().toString().padStart(2, '0');
-      const currentMinute = now.getMinutes().toString().padStart(2, '0');
-      const currentSeconds = now.getSeconds().toString().padStart(2, '0');
-      const currentHHMM = `${currentHour}:${currentMinute}`;
-      const todayDateStr = now.toLocaleDateString('id-ID');
+  const handleCronTick = () => {
+    const { schedules: activeSchedulesList, settings: currentSettings, customAudios: activeAudios } = cronStateRef.current;
+    const now = new Date();
+    const currentDay = now.getDay(); // 0 = Minggu, 1 = Senin, dll
+    const currentHour = now.getHours().toString().padStart(2, '0');
+    const currentMinute = now.getMinutes().toString().padStart(2, '0');
+    const currentSeconds = now.getSeconds().toString().padStart(2, '0');
+    const currentHHMM = `${currentHour}:${currentMinute}`;
+    const todayDateStr = now.toLocaleDateString('id-ID');
 
-      // Check strictly on the '00' second mark to guarantee single triggers
-      if (currentSeconds !== '00') {
+    // Check strictly on the '00' second mark to guarantee single triggers
+    if (currentSeconds !== '00') {
+      return;
+    }
+
+    // Find if there is an active matching schedule
+    const activeSchedules = activeSchedulesList.filter((s) => s.isActive);
+    const matchingSchedule = activeSchedules.find((sched) => {
+      const matchesDay = sched.days.length === 0 || sched.days.includes(currentDay);
+      const matchesTime = sched.time === currentHHMM;
+      return matchesDay && matchesTime;
+    });
+
+    if (matchingSchedule) {
+      // Prevent double hit in the same minute due to clock micro-jitters
+      const triggerKey = `${matchingSchedule.id}_${todayDateStr}_${currentHHMM}`;
+      if (lastRungKeyRef.current === triggerKey) {
         return;
       }
+      lastRungKeyRef.current = triggerKey;
 
-      // Find if there is an active matching schedule
-      const activeSchedules = schedules.filter((s) => s.isActive);
-      const matchingSchedule = activeSchedules.find((sched) => {
-        const matchesDay = sched.days.length === 0 || sched.days.includes(currentDay);
-        const matchesTime = sched.time === currentHHMM;
-        return matchesDay && matchesTime;
-      });
-
-      if (matchingSchedule) {
-        // Prevent double hit in the same minute due to clock micro-jitters
-        const triggerKey = `${matchingSchedule.id}_${todayDateStr}_${currentHHMM}`;
-        if (lastRungKeyRef.current === triggerKey) {
-          return;
+      // Retrieve custom audio if matchingSchedule.introAudioId is set
+      let customIntroUrl: string | undefined = undefined;
+      if (matchingSchedule.introAudioId) {
+        const matchedAudio = activeAudios.find((a) => a.id === matchingSchedule.introAudioId);
+        if (matchedAudio) {
+          customIntroUrl = matchedAudio.dataUrl;
         }
-        lastRungKeyRef.current = triggerKey;
+      }
 
-        // Retrieve custom audio if matchingSchedule.introAudioId is set
-        let customIntroUrl: string | undefined = undefined;
-        if (matchingSchedule.introAudioId) {
-          const matchedAudio = customAudios.find((a) => a.id === matchingSchedule.introAudioId);
-          if (matchedAudio) {
-            customIntroUrl = matchedAudio.dataUrl;
+      // Play sound & TTS announcer
+      playBellNotification(
+        matchingSchedule.soundType,
+        matchingSchedule.chimePreset,
+        matchingSchedule.ttsText,
+        currentSettings,
+        customIntroUrl
+      );
+
+      // Record Log
+      const formattedDate = now.toLocaleDateString('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+      const formattedTime = `${currentHHMM}:00`;
+
+      const newLog: BellLog = {
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: Date.now(),
+        timeStr: formattedTime,
+        dateStr: formattedDate,
+        label: matchingSchedule.label,
+        type: 'automatic',
+        soundType: matchingSchedule.soundType,
+        details: `${
+          matchingSchedule.soundType === 'both'
+            ? `Chime (${matchingSchedule.chimePreset}) + Suara`
+            : matchingSchedule.soundType === 'chime'
+            ? `Chime (${matchingSchedule.chimePreset})`
+            : 'Suara (TTS)'
+        }`,
+      };
+
+      setLogs((prev) => {
+        const updated = [newLog, ...prev];
+        localStorage.setItem('bel_sekolah_logs', JSON.stringify(updated));
+        return updated;
+      });
+    }
+  };
+
+  // --- AUTOMATIC CHRON TIMER ENGINE (WEB WORKER + BACKGROUND KEEP-AWAKE) ---
+  useEffect(() => {
+    if (!isEngineActive) {
+      stopSilenceKeepAlive();
+      return;
+    }
+
+    // Start background silence loop to prevent modern browser tab suspension
+    startSilenceKeepAlive();
+
+    // Self-contained inline Web Worker to bypass main thread setInterval sleep/throttling
+    const workerCode = `
+      let intervalId = null;
+      self.onmessage = function(e) {
+        if (e.data === 'start') {
+          if (intervalId) clearInterval(intervalId);
+          intervalId = setInterval(() => {
+            self.postMessage('tick');
+          }, 1000);
+        } else if (e.data === 'stop') {
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
           }
         }
+      };
+    `;
 
-        // Play sound & TTS announcer
-        playBellNotification(
-          matchingSchedule.soundType,
-          matchingSchedule.chimePreset,
-          matchingSchedule.ttsText,
-          settings,
-          customIntroUrl
-        );
+    let worker: Worker | null = null;
+    try {
+      const blob = new Blob([workerCode], { type: 'application/javascript' });
+      worker = new Worker(URL.createObjectURL(blob));
+      
+      worker.onmessage = () => {
+        handleCronTick();
+      };
+      
+      worker.postMessage('start');
+      console.log('📡 Web Worker Timer Latar Belakang Aktif');
+    } catch (e) {
+      console.warn('Gagal memuat Web Worker Timer, menggunakan fallback timer lokal:', e);
+      // Fallback local timer if workers are blocked
+      const fallbackInterval = setInterval(() => {
+        handleCronTick();
+      }, 1000);
+      
+      return () => {
+        clearInterval(fallbackInterval);
+        stopSilenceKeepAlive();
+      };
+    }
 
-        // Record Log
-        const formattedDate = now.toLocaleDateString('id-ID', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        });
-        const formattedTime = `${currentHHMM}:00`;
-
-        const newLog: BellLog = {
-          id: Math.random().toString(36).substring(2, 9),
-          timestamp: Date.now(),
-          timeStr: formattedTime,
-          dateStr: formattedDate,
-          label: matchingSchedule.label,
-          type: 'automatic',
-          soundType: matchingSchedule.soundType,
-          details: `${
-            matchingSchedule.soundType === 'both'
-              ? `Chime (${matchingSchedule.chimePreset}) + Suara`
-              : matchingSchedule.soundType === 'chime'
-              ? `Chime (${matchingSchedule.chimePreset})`
-              : 'Suara (TTS)'
-          }`,
-        };
-
-        setLogs((prev) => {
-          const updated = [newLog, ...prev];
-          localStorage.setItem('bel_sekolah_logs', JSON.stringify(updated));
-          return updated;
-        });
+    return () => {
+      if (worker) {
+        worker.postMessage('stop');
+        worker.terminate();
       }
-    }, 1000);
+      stopSilenceKeepAlive();
+    };
+  }, [isEngineActive]);
 
-    return () => clearInterval(interval);
-  }, [schedules, isEngineActive, settings, customAudios]);
+  // --- GOOGLE DRIVE SYNC ACTIONS ---
+  const handleSyncLogin = async () => {
+    setIsSyncing(true);
+    try {
+      const result = await googleSignIn();
+      if (result) {
+        setSyncUser(result.user);
+        setSyncToken(result.accessToken);
+        
+        // Check for sync file
+        const fileId = await findSyncFile(result.accessToken);
+        if (fileId) {
+          const driveData = await downloadSyncFile(result.accessToken, fileId);
+          if (driveData) {
+            setConflictData(driveData);
+            setShowSyncConflictModal(true);
+          }
+        } else {
+          // No sync file on Google Drive, upload current local state
+          const success = await uploadSyncFile(result.accessToken, schedules, settings);
+          if (success) {
+            const nowMs = Date.now();
+            setLastSyncTime(nowMs);
+            localStorage.setItem('bel_sekolah_last_sync', nowMs.toString());
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Login & sync Google Drive gagal:', e);
+      alert('Gagal menyinkronkan dengan Google Drive. Silakan coba lagi.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSyncLogout = async () => {
+    if (confirm('Apakah Anda yakin ingin mematikan sinkronisasi Google Drive?')) {
+      await googleSignOut();
+      setSyncUser(null);
+      setSyncToken(null);
+      setLastSyncTime(null);
+      localStorage.removeItem('bel_sekolah_last_sync');
+    }
+  };
+
+  const handleApplySyncData = (choice: 'local' | 'drive') => {
+    if (!conflictData || !syncToken) return;
+    
+    if (choice === 'drive') {
+      // Overwrite local state with Cloud data
+      setSchedules(conflictData.schedules);
+      setSettings(conflictData.settings);
+      localStorage.setItem('bel_sekolah_schedules', JSON.stringify(conflictData.schedules));
+      localStorage.setItem('bel_sekolah_settings', JSON.stringify(conflictData.settings));
+      
+      const syncTime = conflictData.lastSynced || Date.now();
+      setLastSyncTime(syncTime);
+      localStorage.setItem('bel_sekolah_last_sync', syncTime.toString());
+      alert('Berhasil mengunduh dan menyelaraskan jadwal dari Google Drive Anda!');
+    } else {
+      // Overwrite Cloud state with local data
+      setIsSyncing(true);
+      uploadSyncFile(syncToken, schedules, settings).then((success) => {
+        if (success) {
+          const nowMs = Date.now();
+          setLastSyncTime(nowMs);
+          localStorage.setItem('bel_sekolah_last_sync', nowMs.toString());
+          alert('Berhasil mengunggah dan menyelaraskan jadwal lokal ke Google Drive Anda!');
+        } else {
+          alert('Gagal mengunggah data ke Google Drive.');
+        }
+        setIsSyncing(false);
+      });
+    }
+    
+    setShowSyncConflictModal(false);
+    setConflictData(null);
+  };
+
+  const handleSyncManual = async () => {
+    if (!syncToken) return;
+    setIsSyncing(true);
+    try {
+      const success = await uploadSyncFile(syncToken, schedules, settings);
+      if (success) {
+        const nowMs = Date.now();
+        setLastSyncTime(nowMs);
+        localStorage.setItem('bel_sekolah_last_sync', nowMs.toString());
+        alert('Data berhasil disinkronkan ke Google Drive!');
+      } else {
+        alert('Gagal menyinkronkan data.');
+      }
+    } catch (err) {
+      console.error('Error during manual sync:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // --- ACTIONS HANDLERS ---
   const handleActivateEngine = () => {
@@ -561,11 +772,86 @@ export default function App() {
                 onLogoUpdate={handleLogoUpdate}
                 customAudios={customAudios}
                 onUpdateCustomAudios={handleUpdateCustomAudios}
+                syncUser={syncUser}
+                syncToken={syncToken}
+                isSyncing={isSyncing}
+                lastSyncTime={lastSyncTime}
+                onSyncLogin={handleSyncLogin}
+                onSyncLogout={handleSyncLogout}
+                onSyncManual={handleSyncManual}
               />
             )}
           </div>
         </section>
       </main>
+
+      {/* --- GOOGLE DRIVE SYNC CONFLICT RESOLUTION MODAL --- */}
+      {showSyncConflictModal && conflictData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl border border-earth-300 max-w-lg w-full shadow-2xl p-6 flex flex-col gap-5">
+            <div className="flex items-center gap-3 border-b border-earth-200/50 pb-3">
+              <div className="p-2 bg-sage-100 rounded-xl text-sage-700 animate-bounce">
+                <RefreshCw className="w-6 h-6" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-serif font-bold text-earth-900 text-lg">Penyelarasan Google Drive</span>
+                <span className="text-[11px] text-earth-600 font-medium">Ditemukan data sinkronisasi di Cloud</span>
+              </div>
+            </div>
+
+            <div className="text-xs text-earth-800 leading-relaxed flex flex-col gap-3">
+              <p>
+                Halo! Kami menemukan file cadangan bel sekolah Anda yang tersimpan di Google Drive. Pilih tindakan yang ingin Anda lakukan untuk menyinkronkan data:
+              </p>
+
+              <div className="grid grid-cols-2 gap-3.5 mt-1.5">
+                {/* Local State Summary Box */}
+                <div className="p-3 bg-earth-50 border border-earth-200 rounded-2xl flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold text-earth-700 uppercase tracking-wider block">Data Lokal Saat Ini</span>
+                  <div className="text-xs font-bold text-earth-900 leading-none">{schedules.length} Jadwal Bel</div>
+                  <span className="text-[10px] text-earth-600">Disimpan di perangkat ini</span>
+                </div>
+
+                {/* Cloud State Summary Box */}
+                <div className="p-3 bg-sage-50 border border-sage-200 rounded-2xl flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold text-sage-800 uppercase tracking-wider block">Data di Google Drive</span>
+                  <div className="text-xs font-bold text-sage-950 leading-none">{(conflictData.schedules || []).length} Jadwal Bel</div>
+                  {conflictData.lastSynced && (
+                    <span className="text-[9px] text-sage-700 leading-tight">
+                      Sinkron: {new Date(conflictData.lastSynced).toLocaleString('id-ID', {
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => handleApplySyncData('drive')}
+                className="flex-1 py-2.5 bg-sage-700 hover:bg-sage-800 text-white font-bold text-xs rounded-xl cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center gap-0.5"
+              >
+                <span>Unduh dari Google Drive</span>
+                <span className="text-[9px] font-normal opacity-80">(Gunakan data Cloud)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleApplySyncData('local')}
+                className="flex-1 py-2.5 bg-earth-100 hover:bg-earth-200 text-earth-850 border border-earth-300 font-bold text-xs rounded-xl cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center gap-0.5"
+              >
+                <span>Unggah ke Google Drive</span>
+                <span className="text-[9px] font-normal text-earth-600">(Gunakan data perangkat ini)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tidy Footer */}
       <footer className="bg-earth-900 text-earth-300 border-t border-earth-800 text-center py-5 text-xs font-medium" id="footer-root">
